@@ -3,6 +3,7 @@ package models
 import (
 	"database/sql"
 	"encoding/json"
+	"regexp"
 )
 
 // Account is an account a User wants to track
@@ -58,6 +59,39 @@ func (db *DB) AllAccounts() ([]byte, error) {
 	return accountsJSON, nil
 }
 
+// Validate validates the fields in an Account object
+func (a *Account) Validate() bool {
+	namePattern := regexp.MustCompile(`^[a-zA-Z ]+$`)
+	typePattern := regexp.MustCompile(`^(daily|weekly|biweekly|monthly|yearly)$`)
+	datePattern := regexp.MustCompile(`^([1-9]|[12]\d|3[01])$`)
+
+	if a.UserID < 1 {
+		return false
+	}
+
+	if !namePattern.MatchString(a.Name) {
+		return false
+	}
+
+	if !typePattern.MatchString(a.AccountType) {
+		return false
+	}
+
+	if a.MinimumPayment > a.FullAmount {
+		return false
+	}
+
+	if a.CurrentPayment > a.FullAmount {
+		return false
+	}
+
+	if !datePattern.MatchString(a.DueDate) {
+		return false
+	}
+
+	return true
+}
+
 // GetAccount retrieves an account that matches the accountID parameter
 // from the accounts table, otherwise will return nothing.
 func (db *DB) GetAccount(accountID int) ([]byte, error) {
@@ -82,6 +116,37 @@ func (db *DB) GetAccount(accountID int) ([]byte, error) {
 	}
 
 	accountJSON, err := json.Marshal(account)
+	if err != nil {
+		return nil, err
+	}
+
+	return accountJSON, nil
+}
+
+// CreateAccount creates an account in the database and returns the account in JSON in the response
+func (db *DB) CreateAccount(a Account) ([]byte, error) {
+	result, err := db.Exec(`
+		INSERT INTO accounts (user_id, name, account_type, minimum_payment, current_payment, full_amount, due_date, url)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.UserID,
+		a.Name,
+		a.AccountType,
+		a.MinimumPayment,
+		a.CurrentPayment,
+		a.FullAmount,
+		a.DueDate,
+		a.URL,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	accountJSON, err := db.GetAccount(int(id))
 	if err != nil {
 		return nil, err
 	}

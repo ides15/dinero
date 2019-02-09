@@ -14,16 +14,16 @@ const (
 )
 
 func main() {
-	log := config.Log
+	logger := config.Log
 
 	// Get database reference
 	db, err := models.InitDB(dbName)
 	if err != nil {
-		log.Error(err)
+		logger.Error(err)
 	}
 
 	// Set up environment
-	env := &config.Env{DB: db, Log: log}
+	env := &config.Env{DB: db, Log: logger}
 
 	// Register negroni middleware(s)
 	n := negroni.New()
@@ -34,20 +34,14 @@ func main() {
 		n.Use(mw)
 	}
 
-	// Register mux
-	mux := http.NewServeMux()
+	// Register chi router
+	r := routes.NewRouter(env)
 
-	// Define routes
-	mux.HandleFunc("/account/", routes.AccountHandler(env))
-	mux.HandleFunc("/user", routes.UserHandler(env))
-	mux.HandleFunc("/accounts", routes.AccountsHandler(env))
-	mux.HandleFunc("/users", routes.UsersHandler(env))
-
-	// Binding all middlewares to mux
-	n.UseHandler(mux)
+	// Binding all middlewares to chi router
+	n.UseHandler(r)
 
 	// Serve
 	port := ":3000"
-	log.WithField("port", port).Info("Serving...")
-	log.Fatal(http.ListenAndServe(port, n))
+	logger.WithField("port", port).Info("Serving...")
+	logger.Fatal(http.ListenAndServe(port, n))
 }

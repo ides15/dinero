@@ -11,16 +11,7 @@ import (
 type Store interface {
 	AllAccounts() ([]byte, error)
 	GetAccount(int) ([]byte, error)
-	// CreateAccount(struct {
-	// 	UserID         int
-	// 	Name           string
-	// 	AccountType    string
-	// 	MinimumPayment float64
-	// 	CurrentPayment float64
-	// 	FullAmount     *float64
-	// 	DueDate        string
-	// 	URL            *string
-	// }) ([]byte, error)
+	CreateAccount(Account) ([]byte, error)
 	AllUsers() ([]byte, error)
 	GetUser(int) ([]byte, error)
 	CreateUser(User) ([]byte, error)
@@ -61,7 +52,7 @@ func createUsersTable(db *sql.DB) error {
 		"first_name" TEXT NOT NULL,
 		"last_name" TEXT NOT NULL,
 		"full_name" TEXT NOT NULL,
-		"email" TEXT NOT NULL,
+		"email" TEXT NOT NULL UNIQUE,
 		"biweekly_income" REAL NOT NULL,
 		
 		PRIMARY KEY("id")
@@ -84,7 +75,7 @@ func createAccountsTable(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS "accounts" (
 		"id" INTEGER,
 		"user_id" INTEGER NOT NULL,
-		"name" TEXT NOT NULL,
+		"name" TEXT NOT NULL UNIQUE,
 		"account_type" TEXT NOT NULL,
 		"minimum_payment" REAL NOT NULL,
 		"current_payment" REAL NOT NULL,

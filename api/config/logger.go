@@ -10,6 +10,8 @@ import (
 var Log = logrus.New()
 
 func init() {
+	// Log.SetReportCaller(true)
+
 	// Set Logger options here:
 	// Log.Out
 	// Log.Hooks

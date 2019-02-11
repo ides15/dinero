@@ -81,7 +81,7 @@ func CreateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 		// Read POST request body
 		newUser, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			env.Log.Error(err)
+			env.Log.Errorf("IOUTIL %v", err)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
@@ -99,7 +99,6 @@ func CreateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 		// Validate User fields
 		valid := user.Validate()
 		if valid != true {
-			env.Log.Error(err)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}

@@ -1,9 +1,10 @@
-package routes
+package routes_test
 
 import (
 	"bytes"
 	"dinero/api/config"
 	"dinero/api/models"
+	"dinero/api/routes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,14 +80,7 @@ func TestAllAccounts(t *testing.T) {
 		return req
 	}
 
-	tests := []struct {
-		name           string
-		rec            *httptest.ResponseRecorder
-		req            *http.Request
-		env            *config.Env
-		expectedBody   string
-		expectedHeader string
-	}{
+	tests := []TestCase{
 		{
 			name:           "OK",
 			rec:            httptest.NewRecorder(),
@@ -115,16 +109,10 @@ func TestAllAccounts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			r := NewRouter(test.env)
+			r := routes.NewRouter(test.env)
 			r.ServeHTTP(test.rec, test.req)
 
-			if test.expectedBody != test.rec.Body.String() {
-				t.Errorf("\nBody:\n\tGot: \t\t%s\n\tExpected: \t%s\n", test.rec.Body.String(), test.expectedBody)
-			}
-
-			if test.expectedHeader != test.rec.Header().Get("Content-Type") {
-				t.Errorf("\nHeader:\n\tGot: \t\t%s\n\tExpected: \t%s\n", test.rec.Body.String(), test.expectedHeader)
-			}
+			RunTest(&test, t)
 		})
 	}
 }
@@ -132,14 +120,7 @@ func TestAllAccounts(t *testing.T) {
 func TestGetAccount(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name           string
-		rec            *httptest.ResponseRecorder
-		req            *http.Request
-		env            *config.Env
-		expectedBody   string
-		expectedHeader string
-	}{
+	tests := []TestCase{
 		{
 			name:           "OK",
 			rec:            httptest.NewRecorder(),
@@ -179,19 +160,28 @@ func TestGetAccount(t *testing.T) {
 			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log}, // breaks the test because the env.DB is set to have a dbErr
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusInternalServerError)),
 			expectedHeader: "text/plain; charset=utf-8",
-		}}
+		},
+		{
+			name:           "CTX_ERR",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("GET", "/accounts/1", nil),
+			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log}, // breaks the test because the env.DB is set to have a dbErr
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusUnprocessableEntity)),
+			expectedHeader: "text/plain; charset=utf-8",
+		},
+	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			r := NewRouter(test.env)
-			r.ServeHTTP(test.rec, test.req)
+			if test.name == "CTX_ERR" {
+				http.HandlerFunc(routes.GetAccount(test.env)).ServeHTTP(test.rec, test.req)
 
-			if test.expectedBody != test.rec.Body.String() {
-				t.Errorf("\nBody:\n\tGot: \t\t%s\n\tExpected: \t%s\n", test.rec.Body.String(), test.expectedBody)
-			}
+				RunTest(&test, t)
+			} else {
+				r := routes.NewRouter(test.env)
+				r.ServeHTTP(test.rec, test.req)
 
-			if test.expectedHeader != test.rec.Header().Get("Content-Type") {
-				t.Errorf("\nHeader:\n\tGot: \t\t%s\n\tExpected: \t%s\n", test.rec.Body.String(), test.expectedHeader)
+				RunTest(&test, t)
 			}
 		})
 	}
@@ -200,14 +190,7 @@ func TestGetAccount(t *testing.T) {
 func TestCreateAccount(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name           string
-		rec            *httptest.ResponseRecorder
-		req            *http.Request
-		env            *config.Env
-		expectedBody   string
-		expectedHeader string
-	}{
+	tests := []TestCase{
 		{
 			name:           "OK",
 			rec:            httptest.NewRecorder(),
@@ -219,7 +202,7 @@ func TestCreateAccount(t *testing.T) {
 		{
 			name:           "BAD_REQUEST_IOUTIL",
 			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("POST", "/users", ErrReader(0)), // breaks the test because the request body is set to produce an error
+			req:            httptest.NewRequest("POST", "/accounts", ErrReader(0)), // breaks the test because the request body is set to produce an error
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusBadRequest)),
 			expectedHeader: "text/plain; charset=utf-8",
@@ -260,16 +243,10 @@ func TestCreateAccount(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			r := NewRouter(test.env)
+			r := routes.NewRouter(test.env)
 			r.ServeHTTP(test.rec, test.req)
 
-			if test.expectedBody != test.rec.Body.String() {
-				t.Errorf("\nBody:\n\tGot: \t\t%s\n\tExpected: \t%s\n", test.rec.Body.String(), test.expectedBody)
-			}
-
-			if test.expectedHeader != test.rec.Header().Get("Content-Type") {
-				t.Errorf("\nHeader:\n\tGot: \t\t%s\n\tExpected: \t%s\n", test.rec.Body.String(), test.expectedHeader)
-			}
+			RunTest(&test, t)
 		})
 	}
 }

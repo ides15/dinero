@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	dbName = "./dinero.db"
+	dbName = "../dinero.db"
 )
 
 func main() {

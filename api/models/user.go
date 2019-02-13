@@ -2,7 +2,6 @@ package models
 
 import (
 	"database/sql"
-	"encoding/json"
 	"regexp"
 )
 
@@ -17,7 +16,7 @@ type User struct {
 }
 
 // AllUsers retrieves all user rows from the users table
-func (db *DB) AllUsers() ([]byte, error) {
+func (db *DB) AllUsers() ([]*User, error) {
 	rows, err := db.Query("SELECT * FROM users")
 	if err != nil {
 		return nil, err
@@ -45,12 +44,7 @@ func (db *DB) AllUsers() ([]byte, error) {
 		return nil, err
 	}
 
-	usersJSON, err := json.Marshal(users)
-	if err != nil {
-		return nil, err
-	}
-
-	return usersJSON, nil
+	return users, nil
 }
 
 // Validate validates the fields in a User object
@@ -79,7 +73,7 @@ func (u *User) Validate() bool {
 
 // GetUser retrieves a user that matches the userID parameter
 // from the users table, otherwise will return nothing.
-func (db *DB) GetUser(userID int) ([]byte, error) {
+func (db *DB) GetUser(userID int) (*User, error) {
 	row := db.QueryRow("SELECT * FROM users WHERE id = ?", userID)
 
 	user := new(User)
@@ -97,16 +91,11 @@ func (db *DB) GetUser(userID int) ([]byte, error) {
 		return nil, err
 	}
 
-	userJSON, err := json.Marshal(user)
-	if err != nil {
-		return nil, err
-	}
-
-	return userJSON, nil
+	return user, nil
 }
 
 // CreateUser creates a user in the database and returns the user in JSON in the response
-func (db *DB) CreateUser(u User) ([]byte, error) {
+func (db *DB) CreateUser(u User) (*User, error) {
 	result, err := db.Exec(`
 		INSERT INTO users (first_name, last_name, full_name, email, biweekly_income)
 		VALUES (?, ?, ?, ?, ?)`,
@@ -115,6 +104,7 @@ func (db *DB) CreateUser(u User) ([]byte, error) {
 		u.FullName,
 		u.Email,
 		u.BiweeklyIncome)
+
 	if err != nil {
 		return nil, err
 	}
@@ -124,10 +114,45 @@ func (db *DB) CreateUser(u User) ([]byte, error) {
 		return nil, err
 	}
 
-	userJSON, err := db.GetUser(int(id))
+	user, err := db.GetUser(int(id))
 	if err != nil {
 		return nil, err
 	}
 
-	return userJSON, nil
+	return user, nil
+}
+
+// UpdateUser updates a full resource in the database and returns an error if something goes wrong
+func (db *DB) UpdateUser(userID int, u User) error {
+	_, err := db.Exec(`
+		UPDATE users
+		SET
+			first_name = ?,
+			last_name = ?,
+			full_name = ?,
+			email = ?,
+			biweekly_income = ?
+		WHERE id = ?`,
+		u.FirstName,
+		u.LastName,
+		u.FullName,
+		u.Email,
+		u.BiweeklyIncome,
+		userID)
+
+	if err != nil {
+		return err
+	}
+
+	// id, err := result.LastInsertId()
+	// if err != nil {
+	// 	return err
+	// }
+
+	// rows, err := result.RowsAffected()
+	// if err != nil {
+	// 	return err
+	// }
+
+	return nil
 }

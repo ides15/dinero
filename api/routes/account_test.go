@@ -5,7 +5,6 @@ import (
 	"dinero/api/config"
 	"dinero/api/models"
 	"dinero/api/routes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,7 +14,7 @@ import (
 	sqlite3 "github.com/mattn/go-sqlite3"
 )
 
-func (mdb *MockDB) AllAccounts() ([]byte, error) {
+func (mdb *MockDB) AllAccounts() ([]*models.Account, error) {
 	if mdb.dbErr {
 		return nil, errors.New("Database error")
 	}
@@ -24,15 +23,10 @@ func (mdb *MockDB) AllAccounts() ([]byte, error) {
 	accounts = append(accounts, &models.Account{ID: 1, UserID: 1, Name: "Car Payment", AccountType: "monthly", MinimumPayment: 217.99, CurrentPayment: 217.99, DueDate: "12"})
 	accounts = append(accounts, &models.Account{ID: 2, UserID: 1, Name: "Phone Payment", AccountType: "monthly", MinimumPayment: 42.83, CurrentPayment: 100.00, FullAmount: 728.00, DueDate: "10", URL: "https://www.synchronycredit.com/eService/AccountSummary/initiateAccSummaryAction.action"})
 
-	accountsJSON, err := json.Marshal(accounts)
-	if err != nil {
-		return nil, err
-	}
-
-	return accountsJSON, nil
+	return accounts, nil
 }
 
-func (mdb *MockDB) GetAccount(accountID int) ([]byte, error) {
+func (mdb *MockDB) GetAccount(accountID int) (*models.Account, error) {
 	if mdb.dbErr {
 		return nil, errors.New("Database error")
 	}
@@ -43,15 +37,10 @@ func (mdb *MockDB) GetAccount(accountID int) ([]byte, error) {
 
 	account := &models.Account{ID: 1, UserID: 1, Name: "Phone Payment", AccountType: "monthly", MinimumPayment: 42.83, CurrentPayment: 100.00, FullAmount: 728.00, DueDate: "10", URL: "https://www.synchronycredit.com/eService/AccountSummary/initiateAccSummaryAction.action"}
 
-	accountJSON, err := json.Marshal(account)
-	if err != nil {
-		return nil, err
-	}
-
-	return accountJSON, nil
+	return account, nil
 }
 
-func (mdb *MockDB) CreateAccount(a models.Account) ([]byte, error) {
+func (mdb *MockDB) CreateAccount(a models.Account) (*models.Account, error) {
 	if mdb.dbErr {
 		return nil, errors.New("Database error")
 	}
@@ -65,12 +54,22 @@ func (mdb *MockDB) CreateAccount(a models.Account) ([]byte, error) {
 
 	account := &models.Account{ID: 1, UserID: 1, Name: "Car Payment", AccountType: "monthly", MinimumPayment: 217.99, CurrentPayment: 217.99, FullAmount: 21000, DueDate: "10", URL: "ford.com"}
 
-	accountJSON, err := json.Marshal(account)
-	if err != nil {
-		return nil, err
+	return account, nil
+}
+
+func (mdb *MockDB) UpdateAccount(accountID int, a models.Account) error {
+	if mdb.dbErr {
+		return errors.New("Database error")
 	}
 
-	return accountJSON, nil
+	if a.Name == "Already here" {
+		return sqlite3.Error{
+			Code:         sqlite3.ErrConstraint,
+			ExtendedCode: sqlite3.ErrConstraintUnique,
+		}
+	}
+
+	return nil
 }
 
 func TestAllAccounts(t *testing.T) {
@@ -88,22 +87,27 @@ func TestAllAccounts(t *testing.T) {
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   `[{"ID":1,"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":0,"dueDate":"12","URL":""},{"ID":2,"userID":1,"name":"Phone Payment","accountType":"monthly","minimumPayment":42.83,"currentPayment":100,"fullAmount":728,"dueDate":"10","URL":"https://www.synchronycredit.com/eService/AccountSummary/initiateAccSummaryAction.action"}]`,
 			expectedHeader: "application/json",
+			expectedStatus: http.StatusOK,
 		},
 		{
+			// breaks the test because the BAD method is not allowed
 			name:           "BAD_METHOD",
 			rec:            httptest.NewRecorder(),
-			req:            must(http.NewRequest("PUT", "/accounts", nil)), // breaks the test because the PUT method is not allowed
+			req:            httptest.NewRequest("BAD", "/accounts", nil),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusMethodNotAllowed)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
+			// breaks the test because the env.DB is set to have a dbErr
 			name:           "DB_ERR",
 			rec:            httptest.NewRecorder(),
 			req:            must(http.NewRequest("GET", "/accounts", nil)),
-			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log}, // breaks the test because the env.DB is set to have a dbErr
+			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusInternalServerError)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
@@ -128,46 +132,57 @@ func TestGetAccount(t *testing.T) {
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   `{"ID":1,"userID":1,"name":"Phone Payment","accountType":"monthly","minimumPayment":42.83,"currentPayment":100,"fullAmount":728,"dueDate":"10","URL":"https://www.synchronycredit.com/eService/AccountSummary/initiateAccSummaryAction.action"}`,
 			expectedHeader: "application/json",
+			expectedStatus: http.StatusOK,
 		},
 		{
+			// breaks the test because the BAD method is not allowed
 			name:           "BAD_METHOD",
 			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("PUT", "/accounts/1", nil), // breaks the test because the PUT method is not allowed
+			req:            httptest.NewRequest("BAD", "/accounts/1", nil),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusMethodNotAllowed)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
+			// breaks the test because an account with the ID of 3 is not being found
 			name:           "NOT_FOUND",
 			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("GET", "/accounts/3", nil), // breaks the test because an account with the ID of 3 is not being found
+			req:            httptest.NewRequest("GET", "/accounts/3", nil),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusNotFound)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusNotFound,
 		},
 		{
+			// breaks the test because "test" is not an integer
 			name:           "BAD_REQUEST",
 			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("GET", "/accounts/test", nil), // breaks the test because "test" is not an integer
+			req:            httptest.NewRequest("GET", "/accounts/test", nil),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusBadRequest)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
+			// breaks the test because the env.DB is set to have a dbErr
 			name:           "DB_ERR",
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("GET", "/accounts/1", nil),
-			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log}, // breaks the test because the env.DB is set to have a dbErr
+			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusInternalServerError)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusInternalServerError,
 		},
 		{
+			// breaks the test because the env.DB is set to have a dbErr
 			name:           "CTX_ERR",
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("GET", "/accounts/1", nil),
-			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log}, // breaks the test because the env.DB is set to have a dbErr
+			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusUnprocessableEntity)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusUnprocessableEntity,
 		},
 	}
 
@@ -198,46 +213,67 @@ func TestCreateAccount(t *testing.T) {
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   `{"ID":1,"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`,
 			expectedHeader: "application/json",
+			expectedStatus: http.StatusOK,
 		},
 		{
+			// breaks the test because the BAD method is not allowed
+			name:           "BAD_METHOD",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("BAD", "/accounts", nil),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusMethodNotAllowed)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			// breaks the test because the request body is set to produce an error
 			name:           "BAD_REQUEST_IOUTIL",
 			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("POST", "/accounts", ErrReader(0)), // breaks the test because the request body is set to produce an error
+			req:            httptest.NewRequest("POST", "/accounts", ErrReader(0)),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusBadRequest)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
+			// breaks the test because the "accountType" key in the request body is not a string
 			name:           "BAD_REQUEST_UNMARSHAL",
 			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("POST", "/accounts", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))), // breaks the test because the "accountType" key in the request body is not present
+			req:            httptest.NewRequest("POST", "/accounts", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":123,minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusBadRequest)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
+			// breaks the test because the "minimumPayment" key in the request body is not a float64
 			name:           "INVALID",
 			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("POST", "/accounts", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":"bad","currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))), // breaks the test because the "minimumPayment" key in the request body is not a float64
+			req:            httptest.NewRequest("POST", "/accounts", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"bad","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
-			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusBadRequest)),
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusUnprocessableEntity)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusUnprocessableEntity,
 		},
 		{
+			// breaks the test because the "name" key in the request body ("Already here") is set to cause a conflict
 			name:           "SQLITE_CONFLICT",
 			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("POST", "/accounts", bytes.NewBuffer([]byte(`{"userID":1,"name":"Already here","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))), // breaks the test because the "name" key in the request body ("Already here") is set to cause a conflict
+			req:            httptest.NewRequest("POST", "/accounts", bytes.NewBuffer([]byte(`{"userID":1,"name":"Already here","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusConflict)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusConflict,
 		},
 		{
+			// breaks the test because the env.DB is set to have a dbErr
 			name:           "DB_ERR",
 			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("POST", "/accounts", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))), // breaks the test because the env.DB is set to have a dbErr
+			req:            httptest.NewRequest("POST", "/accounts", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
 			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusInternalServerError)),
 			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusInternalServerError,
 		},
 	}
 
@@ -247,6 +283,106 @@ func TestCreateAccount(t *testing.T) {
 			r.ServeHTTP(test.rec, test.req)
 
 			RunTest(&test, t)
+		})
+	}
+}
+
+func TestUpdateAccount(t *testing.T) {
+	t.Parallel()
+
+	tests := []TestCase{
+		{
+			name:           "OK",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/accounts/1", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   "",
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			// breaks the test because the BAD method is not allowed
+			name:           "BAD_METHOD",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("BAD", "/accounts/1", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusMethodNotAllowed)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusMethodNotAllowed,
+		},
+		{
+			// breaks the test because the request body is set to produce an error
+			name:           "BAD_REQUEST_IOUTIL",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/accounts/1", ErrReader(0)),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusBadRequest)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			// breaks the test because the "Name" key in the request body is not a string
+			name:           "BAD_REQUEST_UNMARSHAL",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/accounts/1", bytes.NewBuffer([]byte(`{"userID":1,"name":12345,"accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusBadRequest)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			// breaks the test because the "accountType" key in the request body is not a valid account type
+			name:           "INVALID",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/accounts/1", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"bad","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusUnprocessableEntity)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusUnprocessableEntity,
+		},
+		{
+			// breaks the test because the "name" key in the request body ("Already here") is set to cause a conflict
+			name:           "SQLITE_CONFLICT",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/accounts/1", bytes.NewBuffer([]byte(`{"userID":1,"name":"Already here","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusConflict)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusConflict,
+		},
+		{
+			// breaks the test because the env.DB is set to have a dbErr
+			name:           "DB_ERR",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/accounts/1", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
+			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusInternalServerError)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "CTX_ERR",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/accounts/1", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusUnprocessableEntity)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusUnprocessableEntity,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.name == "CTX_ERR" {
+				http.HandlerFunc(routes.UpdateAccount(test.env)).ServeHTTP(test.rec, test.req)
+
+				RunTest(&test, t)
+			} else {
+				r := routes.NewRouter(test.env)
+				r.ServeHTTP(test.rec, test.req)
+
+				RunTest(&test, t)
+			}
 		})
 	}
 }

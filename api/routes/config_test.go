@@ -22,6 +22,7 @@ type TestCase struct {
 	env            *config.Env
 	expectedBody   string
 	expectedHeader string
+	expectedStatus int
 }
 
 // ErrReader is a utility to produce an error from
@@ -40,5 +41,9 @@ func RunTest(c *TestCase, t *testing.T) {
 
 	if c.expectedHeader != c.rec.Header().Get("Content-Type") {
 		t.Errorf("\nHeader:\n\tGot: \t\t%s\n\tExpected: \t%s\n", c.rec.Body.String(), c.expectedHeader)
+	}
+
+	if c.expectedStatus != c.rec.Code {
+		t.Errorf("\nCode:\n\tGot: \t\t%d\n\tExpected: \t%d\n", c.rec.Code, c.expectedStatus)
 	}
 }

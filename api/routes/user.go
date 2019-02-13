@@ -18,18 +18,29 @@ import (
 type ContextUser string
 
 // UserCtx provides a context for all user routes to have access to that user ID
-func UserCtx(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userParam := chi.URLParam(r, "userID")
-		userID, err := strconv.Atoi(userParam)
-		if err != nil {
-			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-			return
-		}
+func UserCtx(env *config.Env) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userParam := chi.URLParam(r, "userID")
+			userID, err := strconv.Atoi(userParam)
+			if err != nil {
+				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+				return
+			}
 
-		ctx := context.WithValue(r.Context(), ContextUser("userID"), userID)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
+			user, err := env.DB.GetUser(userID)
+			if err == models.ErrNotFound {
+				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+				return
+			} else if err != nil {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), ContextUser("user"), user)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
 // AllUsers gets all User records within the users tablein the database
@@ -37,13 +48,14 @@ func AllUsers(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		users, err := env.DB.AllUsers()
 		if err != nil {
-			env.Log.Error(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
+		usersJSON, _ := json.Marshal(users)
+
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(users)
+		w.Write(usersJSON)
 	}
 }
 
@@ -51,26 +63,17 @@ func AllUsers(env *config.Env) func(http.ResponseWriter, *http.Request) {
 func GetUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		userID, ok := ctx.Value(ContextUser("userID")).(int)
+		user, ok := ctx.Value(ContextUser("user")).(*models.User)
 		if !ok {
 			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
 			return
 		}
 
-		// Get the user from the database based on the user ID
-		user, err := env.DB.GetUser(userID)
-		if err == models.ErrNotFound {
-			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-			return
-		} else if err != nil {
-			env.Log.Error(err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-			return
-		}
+		userJSON, _ := json.Marshal(user)
 
 		// Send the found user JSON back in the response
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(user)
+		w.Write(userJSON)
 		return
 	}
 }
@@ -81,7 +84,6 @@ func CreateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 		// Read POST request body
 		newUser, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			env.Log.Errorf("IOUTIL %v", err)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
@@ -91,7 +93,6 @@ func CreateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 		var user models.User
 		err = json.Unmarshal(newUser, &user)
 		if err != nil {
-			env.Log.Error(err)
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
@@ -99,7 +100,7 @@ func CreateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 		// Validate User fields
 		valid := user.Validate()
 		if valid != true {
-			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
 			return
 		}
 
@@ -111,14 +112,67 @@ func CreateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 				return
 			}
 		} else if err != nil {
-			env.Log.Error(err)
 			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
+		createdUserJSON, _ := json.Marshal(createdUser)
+
 		// Send the created user JSON back in the response
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(createdUser)
+		w.Write(createdUserJSON)
+		return
+	}
+}
+
+// UpdateUser updates a user record in the database and returns that created record
+func UpdateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		user, ok := ctx.Value(ContextUser("user")).(*models.User)
+		if !ok {
+			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+			return
+		}
+
+		// Read PUT request body
+		editedUser, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+		defer r.Body.Close()
+
+		// Read request body into User object
+		var newUser models.User
+		err = json.Unmarshal(editedUser, &newUser)
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			return
+		}
+
+		// Validate User fields
+		valid := newUser.Validate()
+		if !valid {
+			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+			return
+		}
+
+		// Update user in database
+		err = env.DB.UpdateUser(user.ID, newUser)
+		if sqliteErr, ok := err.(sqlite3.Error); ok {
+			if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+				http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)
+				return
+			}
+		} else if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		// Send a Status No Content response
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 }

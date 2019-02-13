@@ -16,8 +16,9 @@ func NewRouter(env *config.Env) *chi.Mux {
 		r.Post("/", CreateAccount(env)) // POST /accounts
 
 		r.Route("/{accountID}", func(r chi.Router) {
-			r.Use(AccountCtx)
-			r.Get("/", GetAccount(env)) // GET /accounts/123
+			r.Use(AccountCtx(env))
+			r.Get("/", GetAccount(env))    // GET /accounts/123
+			r.Put("/", UpdateAccount(env)) // PUT /accounts/123
 		})
 	})
 
@@ -26,8 +27,9 @@ func NewRouter(env *config.Env) *chi.Mux {
 		r.Post("/", CreateUser(env)) // POST /users
 
 		r.Route("/{userID}", func(r chi.Router) {
-			r.Use(UserCtx)
-			r.Get("/", GetUser(env)) // GET /users/123
+			r.Use(UserCtx(env))
+			r.Get("/", GetUser(env))    // GET /users/123
+			r.Put("/", UpdateUser(env)) // PUT /users/123
 		})
 	})
 

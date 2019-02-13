@@ -2,7 +2,7 @@ package models
 
 import (
 	"database/sql"
-	"encoding/json"
+	"fmt"
 	"regexp"
 )
 
@@ -20,7 +20,7 @@ type Account struct {
 }
 
 // AllAccounts retrieves all account rows from the accounts table
-func (db *DB) AllAccounts() ([]byte, error) {
+func (db *DB) AllAccounts() ([]*Account, error) {
 	rows, err := db.Query("SELECT * FROM accounts")
 	if err != nil {
 		return nil, err
@@ -51,12 +51,7 @@ func (db *DB) AllAccounts() ([]byte, error) {
 		return nil, err
 	}
 
-	accountsJSON, err := json.Marshal(accounts)
-	if err != nil {
-		return nil, err
-	}
-
-	return accountsJSON, nil
+	return accounts, nil
 }
 
 // Validate validates the fields in an Account object
@@ -94,7 +89,7 @@ func (a *Account) Validate() bool {
 
 // GetAccount retrieves an account that matches the accountID parameter
 // from the accounts table, otherwise will return nothing.
-func (db *DB) GetAccount(accountID int) ([]byte, error) {
+func (db *DB) GetAccount(accountID int) (*Account, error) {
 	row := db.QueryRow("SELECT * FROM accounts WHERE id = ?", accountID)
 
 	account := new(Account)
@@ -115,16 +110,11 @@ func (db *DB) GetAccount(accountID int) ([]byte, error) {
 		return nil, err
 	}
 
-	accountJSON, err := json.Marshal(account)
-	if err != nil {
-		return nil, err
-	}
-
-	return accountJSON, nil
+	return account, nil
 }
 
 // CreateAccount creates an account in the database and returns the account in JSON in the response
-func (db *DB) CreateAccount(a Account) ([]byte, error) {
+func (db *DB) CreateAccount(a Account) (*Account, error) {
 	result, err := db.Exec(`
 		INSERT INTO accounts (user_id, name, account_type, minimum_payment, current_payment, full_amount, due_date, url)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -146,10 +136,53 @@ func (db *DB) CreateAccount(a Account) ([]byte, error) {
 		return nil, err
 	}
 
-	accountJSON, err := db.GetAccount(int(id))
+	account, err := db.GetAccount(int(id))
 	if err != nil {
 		return nil, err
 	}
 
-	return accountJSON, nil
+	return account, nil
+}
+
+// UpdateAccount updates a full resource in the database and returns an error if something goes wrong
+func (db *DB) UpdateAccount(accountID int, a Account) error {
+	fmt.Println(accountID)
+	fmt.Println(a)
+	_, err := db.Exec(`
+		UPDATE accounts
+		SET
+			user_id = ?,
+			name = ?,
+			account_type = ?,
+			minimum_payment = ?,
+			current_payment = ?,
+			full_amount = ?,
+			due_date = ?,
+			url = ?
+		WHERE id = ?`,
+		a.UserID,
+		a.Name,
+		a.AccountType,
+		a.MinimumPayment,
+		a.CurrentPayment,
+		a.FullAmount,
+		a.DueDate,
+		a.URL,
+		accountID)
+
+	if err != nil {
+		return err
+	}
+
+	// id, err := result.LastInsertId()
+	// if err != nil {
+	// 	return err
+	// }
+
+	// rows, err := result.RowsAffected()
+	// if err != nil {
+	// 	return err
+	// }
+
+	return nil
 }

@@ -9,12 +9,14 @@ import (
 
 // Store is a general interface for a datastore (real vs mock)
 type Store interface {
-	AllAccounts() ([]byte, error)
-	GetAccount(int) ([]byte, error)
-	CreateAccount(Account) ([]byte, error)
-	AllUsers() ([]byte, error)
-	GetUser(int) ([]byte, error)
-	CreateUser(User) ([]byte, error)
+	AllAccounts() ([]*Account, error)
+	GetAccount(int) (*Account, error)
+	CreateAccount(Account) (*Account, error)
+	UpdateAccount(int, Account) error
+	AllUsers() ([]*User, error)
+	GetUser(int) (*User, error)
+	CreateUser(User) (*User, error)
+	UpdateUser(int, User) error
 }
 
 // DB is a general DB type for actual DB connections (vs mock DBs)

@@ -28,16 +28,7 @@ func UserCtx(env *config.Env) func(http.Handler) http.Handler {
 				return
 			}
 
-			user, err := env.DB.GetUser(userID)
-			if err == models.ErrNotFound {
-				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-				return
-			} else if err != nil {
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-
-			ctx := context.WithValue(r.Context(), ContextUser("user"), user)
+			ctx := context.WithValue(r.Context(), ContextUser("userID"), userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -63,9 +54,18 @@ func AllUsers(env *config.Env) func(http.ResponseWriter, *http.Request) {
 func GetUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		user, ok := ctx.Value(ContextUser("user")).(*models.User)
+		userID, ok := ctx.Value(ContextUser("userID")).(int)
 		if !ok {
 			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+			return
+		}
+
+		user, err := env.DB.GetUser(userID)
+		if err == models.ErrNotFound {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		} else if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
@@ -129,7 +129,7 @@ func CreateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 func UpdateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		user, ok := ctx.Value(ContextUser("user")).(*models.User)
+		userID, ok := ctx.Value(ContextUser("userID")).(int)
 		if !ok {
 			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
 			return
@@ -158,8 +158,27 @@ func UpdateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
+		// Check if User is already in database and if not, create it
+		_, err = env.DB.GetUser(userID)
+		if err == models.ErrNotFound {
+			_, err := env.DB.CreateUser(newUser)
+			if sqliteErr, ok := err.(sqlite3.Error); ok {
+				if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+					http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)
+					return
+				}
+			} else if err != nil {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+
 		// Update user in database
-		err = env.DB.UpdateUser(user.ID, &newUser)
+		err = env.DB.UpdateUser(userID, &newUser)
 		if sqliteErr, ok := err.(sqlite3.Error); ok {
 			if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 				http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)

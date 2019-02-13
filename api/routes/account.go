@@ -28,16 +28,7 @@ func AccountCtx(env *config.Env) func(http.Handler) http.Handler {
 				return
 			}
 
-			account, err := env.DB.GetAccount(accountID)
-			if err == models.ErrNotFound {
-				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-				return
-			} else if err != nil {
-				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-				return
-			}
-
-			ctx := context.WithValue(r.Context(), ContextAccount("account"), account)
+			ctx := context.WithValue(r.Context(), ContextAccount("accountID"), accountID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -63,9 +54,18 @@ func AllAccounts(env *config.Env) func(http.ResponseWriter, *http.Request) {
 func GetAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		account, ok := ctx.Value(ContextAccount("account")).(*models.Account)
+		accountID, ok := ctx.Value(ContextAccount("accountID")).(int)
 		if !ok {
 			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+			return
+		}
+
+		account, err := env.DB.GetAccount(accountID)
+		if err == models.ErrNotFound {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		} else if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 			return
 		}
 
@@ -129,7 +129,7 @@ func CreateAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
 func UpdateAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		account, ok := ctx.Value(ContextAccount("account")).(*models.Account)
+		accountID, ok := ctx.Value(ContextAccount("accountID")).(int)
 		if !ok {
 			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
 			return
@@ -151,15 +151,35 @@ func UpdateAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		// Validate User fields
+		// Validate Account fields
 		valid := newAccount.Validate()
 		if !valid {
 			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
 			return
 		}
 
+		// Check if Account is already in database and if not, create it
+		_, err = env.DB.GetAccount(accountID)
+		if err == models.ErrNotFound {
+			_, err := env.DB.CreateAccount(newAccount)
+			if sqliteErr, ok := err.(sqlite3.Error); ok {
+				if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+					http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)
+					return
+				}
+			} else if err != nil {
+				http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+				return
+			}
+
+			// Send a Status Created response
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+
 		// Update user in database
-		err = env.DB.UpdateAccount(account.ID, &newAccount)
+		err = env.DB.UpdateAccount(accountID, &newAccount)
 		if sqliteErr, ok := err.(sqlite3.Error); ok {
 			if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 				http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)

@@ -77,7 +77,7 @@ func createAccountsTable(db *sql.DB) error {
 	CREATE TABLE IF NOT EXISTS "accounts" (
 		"id" INTEGER,
 		"user_id" INTEGER NOT NULL,
-		"name" TEXT NOT NULL UNIQUE,
+		"name" TEXT NOT NULL,
 		"account_type" TEXT NOT NULL,
 		"minimum_payment" REAL NOT NULL,
 		"current_payment" REAL NOT NULL,
@@ -85,6 +85,7 @@ func createAccountsTable(db *sql.DB) error {
 		"due_date" TEXT NOT NULL,
 		"url" TEXT NOT NULL,
 
+		UNIQUE("user_id", "name")
 		PRIMARY KEY("id")
 	)`)
 	if err != nil {

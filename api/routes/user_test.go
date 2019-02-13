@@ -27,12 +27,12 @@ func (mdb *MockDB) AllUsers() ([]*models.User, error) {
 }
 
 func (mdb *MockDB) GetUser(userID int) (*models.User, error) {
-	if mdb.dbErr {
-		return nil, errors.New("Database error")
-	}
-
 	if userID != 1 {
 		return nil, models.ErrNotFound
+	}
+
+	if mdb.dbErr {
+		return nil, errors.New("Database error")
 	}
 
 	user := &models.User{ID: 1, FirstName: "Luke", LastName: "Toth", FullName: "Luke Toth", Email: "lptoth55@gmail.com", BiweeklyIncome: 1400.00}
@@ -288,7 +288,7 @@ func TestUpdateUser(t *testing.T) {
 
 	tests := []TestCase{
 		{
-			name:           "OK",
+			name:           "OK_NO_CONTENT",
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("PUT", "/users/1", bytes.NewBuffer([]byte(`{"ID":1,"firstName":"John","lastName":"Ide","fullName":"John Ide","email":"ide.johnc@gmail.com","biweeklyIncome":1860.99}`))),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
@@ -297,9 +297,19 @@ func TestUpdateUser(t *testing.T) {
 			expectedStatus: http.StatusNoContent,
 		},
 		{
+			name:           "OK_CREATED",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/users/3", bytes.NewBuffer([]byte(`{"ID":1,"firstName":"John","lastName":"Ide","fullName":"John Ide","email":"ide.johnc@gmail.com","biweeklyIncome":1860.99}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   "",
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusCreated,
+		},
+		{
 			// breaks the test because the BAD method is not allowed
-			name: "BAD_METHOD",
-			rec:  httptest.NewRecorder(), req: httptest.NewRequest("BAD", "/users/1", nil),
+			name:           "BAD_METHOD",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("BAD", "/users/1", nil),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusMethodNotAllowed)),
 			expectedHeader: "text/plain; charset=utf-8",
@@ -346,10 +356,30 @@ func TestUpdateUser(t *testing.T) {
 			expectedStatus: http.StatusConflict,
 		},
 		{
+			// breaks the test because the "email" key in the request body ("already-here@gmail.com") is set to cause a conflict
+			name:           "SQLITE_CONFLICT_CREATED",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/users/3", bytes.NewBuffer([]byte(`{"firstName":"John","lastName":"Ide","fullName":"John Ide","email":"already-here@gmail.com","biweeklyIncome":1860.99}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusConflict)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusConflict,
+		},
+		{
 			// breaks the test because the env.DB is set to have a dbErr
 			name:           "DB_ERR",
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("PUT", "/users/1", bytes.NewBuffer([]byte(`{"ID":1,"firstName":"John","lastName":"Ide","fullName":"John Ide","email":"ide.johnc@gmail.com","biweeklyIncome":1860.99}`))),
+			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusInternalServerError)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			// breaks the test because the env.DB is set to have a dbErr
+			name:           "DB_ERR_CREATED",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/users/3", bytes.NewBuffer([]byte(`{"ID":1,"firstName":"John","lastName":"Ide","fullName":"John Ide","email":"ide.johnc@gmail.com","biweeklyIncome":1860.99}`))),
 			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusInternalServerError)),
 			expectedHeader: "text/plain; charset=utf-8",

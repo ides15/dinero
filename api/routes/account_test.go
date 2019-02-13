@@ -27,12 +27,12 @@ func (mdb *MockDB) AllAccounts() ([]*models.Account, error) {
 }
 
 func (mdb *MockDB) GetAccount(accountID int) (*models.Account, error) {
-	if mdb.dbErr {
-		return nil, errors.New("Database error")
-	}
-
 	if accountID != 1 {
 		return nil, models.ErrNotFound
+	}
+
+	if mdb.dbErr {
+		return nil, errors.New("Database error")
 	}
 
 	account := &models.Account{ID: 1, UserID: 1, Name: "Phone Payment", AccountType: "monthly", MinimumPayment: 42.83, CurrentPayment: 100.00, FullAmount: 728.00, DueDate: "10", URL: "https://www.synchronycredit.com/eService/AccountSummary/initiateAccSummaryAction.action"}
@@ -292,13 +292,22 @@ func TestUpdateAccount(t *testing.T) {
 
 	tests := []TestCase{
 		{
-			name:           "OK",
+			name:           "OK_NO_CONTENT",
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("PUT", "/accounts/1", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   "",
 			expectedHeader: "text/plain; charset=utf-8",
 			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "OK_CREATED",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/accounts/3", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   "",
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusCreated,
 		},
 		{
 			// breaks the test because the BAD method is not allowed
@@ -351,10 +360,29 @@ func TestUpdateAccount(t *testing.T) {
 			expectedStatus: http.StatusConflict,
 		},
 		{
+			// breaks the test because the "name" key in the request body ("Already here") is set to cause a conflict
+			name:           "SQLITE_CONFLICT_CREATED",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/accounts/3", bytes.NewBuffer([]byte(`{"userID":1,"name":"Already here","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusConflict)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusConflict,
+		},
+		{
 			// breaks the test because the env.DB is set to have a dbErr
 			name:           "DB_ERR",
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("PUT", "/accounts/1", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
+			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusInternalServerError)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "DB_ERR_CREATED",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/accounts/3", bytes.NewBuffer([]byte(`{"userID":1,"name":"Car Payment","accountType":"monthly","minimumPayment":217.99,"currentPayment":217.99,"fullAmount":21000,"dueDate":"10","URL":"ford.com"}`))),
 			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusInternalServerError)),
 			expectedHeader: "text/plain; charset=utf-8",

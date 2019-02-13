@@ -183,3 +183,27 @@ func (db *DB) UpdateAccount(accountID int, a *Account) error {
 
 	return nil
 }
+
+// DeleteAccount removes a resource from the database and returns an error if something goes wrong
+func (db *DB) DeleteAccount(userID int) error {
+	result, err := db.Exec(`
+		DELETE
+		FROM accounts
+		WHERE id = ?`,
+		userID)
+
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows < 1 {
+		return ErrNotFound
+	}
+
+	return nil
+}

@@ -195,3 +195,28 @@ func UpdateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 		return
 	}
 }
+
+// DeleteUser deletes a user record in the database
+func DeleteUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		userID, ok := ctx.Value(ContextUser("userID")).(int)
+		if !ok {
+			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+			return
+		}
+
+		err := env.DB.DeleteUser(userID)
+		if err == models.ErrNotFound {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		} else if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+}

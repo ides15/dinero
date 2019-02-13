@@ -196,3 +196,28 @@ func UpdateAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
 		return
 	}
 }
+
+// DeleteAccount deletes an account record in the database
+func DeleteAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		accountID, ok := ctx.Value(ContextAccount("accountID")).(int)
+		if !ok {
+			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+			return
+		}
+
+		err := env.DB.DeleteAccount(accountID)
+		if err == models.ErrNotFound {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		} else if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+}

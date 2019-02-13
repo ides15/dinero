@@ -72,6 +72,18 @@ func (mdb *MockDB) UpdateAccount(accountID int, a *models.Account) error {
 	return nil
 }
 
+func (mdb *MockDB) DeleteAccount(accountID int) error {
+	if accountID != 1 {
+		return models.ErrNotFound
+	}
+
+	if mdb.dbErr {
+		return errors.New("Database error")
+	}
+
+	return nil
+}
+
 func TestAllAccounts(t *testing.T) {
 	t.Parallel()
 
@@ -403,6 +415,64 @@ func TestUpdateAccount(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			if test.name == "CTX_ERR" {
 				http.HandlerFunc(routes.UpdateAccount(test.env)).ServeHTTP(test.rec, test.req)
+
+				RunTest(&test, t)
+			} else {
+				r := routes.NewRouter(test.env)
+				r.ServeHTTP(test.rec, test.req)
+
+				RunTest(&test, t)
+			}
+		})
+	}
+}
+
+func TestDeleteAccount(t *testing.T) {
+	t.Parallel()
+
+	tests := []TestCase{
+		{
+			name:           "OK",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("DELETE", "/accounts/1", nil),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   "",
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusNoContent,
+		},
+		{
+			name:           "NOT_FOUND",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("DELETE", "/accounts/3", nil),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusNotFound)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "DB_ERR",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("DELETE", "/accounts/1", nil),
+			env:            &config.Env{DB: &MockDB{dbErr: true}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusInternalServerError)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "CTX_ERR",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("DELETE", "/accounts/1", nil),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusUnprocessableEntity)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusUnprocessableEntity,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.name == "CTX_ERR" {
+				http.HandlerFunc(routes.DeleteAccount(test.env)).ServeHTTP(test.rec, test.req)
 
 				RunTest(&test, t)
 			} else {

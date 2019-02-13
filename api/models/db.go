@@ -12,11 +12,11 @@ type Store interface {
 	AllAccounts() ([]*Account, error)
 	GetAccount(int) (*Account, error)
 	CreateAccount(Account) (*Account, error)
-	UpdateAccount(int, Account) error
+	UpdateAccount(int, *Account) error
 	AllUsers() ([]*User, error)
 	GetUser(int) (*User, error)
 	CreateUser(User) (*User, error)
-	UpdateUser(int, User) error
+	UpdateUser(int, *User) error
 }
 
 // DB is a general DB type for actual DB connections (vs mock DBs)

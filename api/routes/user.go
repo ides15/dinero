@@ -159,7 +159,7 @@ func UpdateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 		}
 
 		// Update user in database
-		err = env.DB.UpdateUser(user.ID, newUser)
+		err = env.DB.UpdateUser(user.ID, &newUser)
 		if sqliteErr, ok := err.(sqlite3.Error); ok {
 			if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
 				http.Error(w, http.StatusText(http.StatusConflict), http.StatusConflict)

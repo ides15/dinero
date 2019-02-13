@@ -123,7 +123,7 @@ func (db *DB) CreateUser(u User) (*User, error) {
 }
 
 // UpdateUser updates a full resource in the database and returns an error if something goes wrong
-func (db *DB) UpdateUser(userID int, u User) error {
+func (db *DB) UpdateUser(userID int, u *User) error {
 	_, err := db.Exec(`
 		UPDATE users
 		SET

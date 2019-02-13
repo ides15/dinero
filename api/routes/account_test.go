@@ -57,7 +57,7 @@ func (mdb *MockDB) CreateAccount(a models.Account) (*models.Account, error) {
 	return account, nil
 }
 
-func (mdb *MockDB) UpdateAccount(accountID int, a models.Account) error {
+func (mdb *MockDB) UpdateAccount(accountID int, a *models.Account) error {
 	if mdb.dbErr {
 		return errors.New("Database error")
 	}

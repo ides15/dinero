@@ -145,7 +145,7 @@ func (db *DB) CreateAccount(a Account) (*Account, error) {
 }
 
 // UpdateAccount updates a full resource in the database and returns an error if something goes wrong
-func (db *DB) UpdateAccount(accountID int, a Account) error {
+func (db *DB) UpdateAccount(accountID int, a *Account) error {
 	fmt.Println(accountID)
 	fmt.Println(a)
 	_, err := db.Exec(`

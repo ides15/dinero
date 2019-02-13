@@ -57,7 +57,7 @@ func (mdb *MockDB) CreateUser(u models.User) (*models.User, error) {
 	return user, nil
 }
 
-func (mdb *MockDB) UpdateUser(userID int, u models.User) error {
+func (mdb *MockDB) UpdateUser(userID int, u *models.User) error {
 	if mdb.dbErr {
 		return errors.New("Database error")
 	}

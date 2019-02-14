@@ -171,16 +171,6 @@ func (db *DB) UpdateAccount(accountID int, a *Account) error {
 		return err
 	}
 
-	// id, err := result.LastInsertId()
-	// if err != nil {
-	// 	return err
-	// }
-
-	// rows, err := result.RowsAffected()
-	// if err != nil {
-	// 	return err
-	// }
-
 	return nil
 }
 

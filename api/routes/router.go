@@ -4,11 +4,17 @@ import (
 	"dinero/api/config"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 )
 
 // NewRouter sets up a chi Mux router
 func NewRouter(env *config.Env) *chi.Mux {
 	r := chi.NewRouter()
+
+	// Middleware to log each route using Logrus
+	r.Use(config.RouteLogger(env))
+	// Middleware to recover gracefully from panics
+	r.Use(middleware.Recoverer)
 
 	// Define routes
 	r.Route("/accounts", func(r chi.Router) {

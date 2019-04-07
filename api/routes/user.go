@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"context"
 	"dinero/api/config"
 	"dinero/api/models"
 	"encoding/json"
@@ -9,30 +8,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi"
+	"github.com/gorilla/mux"
 	sqlite3 "github.com/mattn/go-sqlite3"
 )
-
-// ContextUser is a wrapper for the string type to prevent reuse of context
-// types from 3rd party libraries
-type ContextUser string
-
-// UserCtx provides a context for all user routes to have access to that user ID
-func UserCtx(env *config.Env) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			userParam := chi.URLParam(r, "userID")
-			userID, err := strconv.Atoi(userParam)
-			if err != nil {
-				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-				return
-			}
-
-			ctx := context.WithValue(r.Context(), ContextUser("userID"), userID)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
 
 // AllUsers gets all User records within the users tablein the database
 func AllUsers(env *config.Env) func(http.ResponseWriter, *http.Request) {
@@ -53,10 +31,10 @@ func AllUsers(env *config.Env) func(http.ResponseWriter, *http.Request) {
 // GetUser gets a user from the databased based on the User ID in the URL and returns it
 func GetUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		userID, ok := ctx.Value(ContextUser("userID")).(int)
-		if !ok {
-			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+		vars := mux.Vars(r)
+		userID, err := strconv.Atoi(vars["userID"])
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
 
@@ -128,10 +106,10 @@ func CreateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 // UpdateUser updates a user record in the database and returns that created record
 func UpdateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		userID, ok := ctx.Value(ContextUser("userID")).(int)
-		if !ok {
-			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+		vars := mux.Vars(r)
+		userID, err := strconv.Atoi(vars["userID"])
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
 
@@ -199,14 +177,14 @@ func UpdateUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 // DeleteUser deletes a user record in the database
 func DeleteUser(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		userID, ok := ctx.Value(ContextUser("userID")).(int)
-		if !ok {
-			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+		vars := mux.Vars(r)
+		userID, err := strconv.Atoi(vars["userID"])
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
 
-		err := env.DB.DeleteUser(userID)
+		err = env.DB.DeleteUser(userID)
 		if err == models.ErrNotFound {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			return

@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"context"
 	"dinero/api/config"
 	"dinero/api/models"
 	"encoding/json"
@@ -9,30 +8,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi"
+	"github.com/gorilla/mux"
 	sqlite3 "github.com/mattn/go-sqlite3"
 )
-
-// ContextAccount is a wrapper for the string type to prevent reuse of context
-// types from 3rd party libraries
-type ContextAccount string
-
-// AccountCtx provides a context for all account routes to have access to the account ID
-func AccountCtx(env *config.Env) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			accountParam := chi.URLParam(r, "accountID")
-			accountID, err := strconv.Atoi(accountParam)
-			if err != nil {
-				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-				return
-			}
-
-			ctx := context.WithValue(r.Context(), ContextAccount("accountID"), accountID)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
 
 // AllAccounts gets all Account records within the accounts table in the database
 func AllAccounts(env *config.Env) func(http.ResponseWriter, *http.Request) {
@@ -53,10 +31,10 @@ func AllAccounts(env *config.Env) func(http.ResponseWriter, *http.Request) {
 // GetAccount gets an account from the database based on the Account ID in the URL and returns it
 func GetAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		accountID, ok := ctx.Value(ContextAccount("accountID")).(int)
-		if !ok {
-			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+		vars := mux.Vars(r)
+		accountID, err := strconv.Atoi(vars["accountID"])
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
 
@@ -128,10 +106,10 @@ func CreateAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
 // UpdateAccount updates an account record in the database and returns that created record
 func UpdateAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		accountID, ok := ctx.Value(ContextAccount("accountID")).(int)
-		if !ok {
-			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+		vars := mux.Vars(r)
+		accountID, err := strconv.Atoi(vars["accountID"])
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
 
@@ -200,14 +178,14 @@ func UpdateAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
 // DeleteAccount deletes an account record in the database
 func DeleteAccount(env *config.Env) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		accountID, ok := ctx.Value(ContextAccount("accountID")).(int)
-		if !ok {
-			http.Error(w, http.StatusText(http.StatusUnprocessableEntity), http.StatusUnprocessableEntity)
+		vars := mux.Vars(r)
+		accountID, err := strconv.Atoi(vars["accountID"])
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 			return
 		}
 
-		err := env.DB.DeleteAccount(accountID)
+		err = env.DB.DeleteAccount(accountID)
 		if err == models.ErrNotFound {
 			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 			return

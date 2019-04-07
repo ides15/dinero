@@ -103,8 +103,8 @@ func TestAllUsers(t *testing.T) {
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("BAD", "/users", nil),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
-			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusMethodNotAllowed)),
-			expectedHeader: "text/plain; charset=utf-8",
+			expectedBody:   "",
+			expectedHeader: "",
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
@@ -148,8 +148,8 @@ func TestGetUser(t *testing.T) {
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("BAD", "/users/1", nil),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
-			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusMethodNotAllowed)),
-			expectedHeader: "text/plain; charset=utf-8",
+			expectedBody:   "",
+			expectedHeader: "",
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
@@ -182,30 +182,14 @@ func TestGetUser(t *testing.T) {
 			expectedHeader: "text/plain; charset=utf-8",
 			expectedStatus: http.StatusInternalServerError,
 		},
-		{
-			// breaks the test because the env.DB is set to have a dbErr
-			name:           "CTX_ERR",
-			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("GET", "/users/1", nil),
-			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
-			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusUnprocessableEntity)),
-			expectedHeader: "text/plain; charset=utf-8",
-			expectedStatus: http.StatusUnprocessableEntity,
-		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if test.name == "CTX_ERR" {
-				http.HandlerFunc(routes.GetUser(test.env)).ServeHTTP(test.rec, test.req)
+			r := routes.NewRouter(test.env)
+			r.ServeHTTP(test.rec, test.req)
 
-				RunTest(&test, t)
-			} else {
-				r := routes.NewRouter(test.env)
-				r.ServeHTTP(test.rec, test.req)
-
-				RunTest(&test, t)
-			}
+			RunTest(&test, t)
 		})
 	}
 }
@@ -229,8 +213,8 @@ func TestCreateUser(t *testing.T) {
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("BAD", "/users", nil),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
-			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusMethodNotAllowed)),
-			expectedHeader: "text/plain; charset=utf-8",
+			expectedBody:   "",
+			expectedHeader: "",
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
@@ -323,8 +307,8 @@ func TestUpdateUser(t *testing.T) {
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("BAD", "/users/1", nil),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
-			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusMethodNotAllowed)),
-			expectedHeader: "text/plain; charset=utf-8",
+			expectedBody:   "",
+			expectedHeader: "",
 			expectedStatus: http.StatusMethodNotAllowed,
 		},
 		{
@@ -342,6 +326,16 @@ func TestUpdateUser(t *testing.T) {
 			name:           "BAD_REQUEST_UNMARSHAL",
 			rec:            httptest.NewRecorder(),
 			req:            httptest.NewRequest("PUT", "/users/1", bytes.NewBuffer([]byte(`{"firstName":123,"lastName":"Ide","fullName":"John Ide","email":"ide.johnc@gmail.com","biweeklyIncome":1860.99}`))),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusBadRequest)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			// breaks the test because "test" is not an integer
+			name:           "BAD_REQUEST_STRING",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("PUT", "/users/test", bytes.NewBuffer([]byte(`{"ID":1,"firstName":"John","lastName":"Ide","fullName":"John Ide","email":"ide.johnc@gmail.com","biweeklyIncome":1860.99}`))),
 			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
 			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusBadRequest)),
 			expectedHeader: "text/plain; charset=utf-8",
@@ -397,29 +391,14 @@ func TestUpdateUser(t *testing.T) {
 			expectedHeader: "text/plain; charset=utf-8",
 			expectedStatus: http.StatusInternalServerError,
 		},
-		{
-			name:           "CTX_ERR",
-			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("PUT", "/users/1", nil),
-			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
-			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusUnprocessableEntity)),
-			expectedHeader: "text/plain; charset=utf-8",
-			expectedStatus: http.StatusUnprocessableEntity,
-		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if test.name == "CTX_ERR" {
-				http.HandlerFunc(routes.UpdateUser(test.env)).ServeHTTP(test.rec, test.req)
+			r := routes.NewRouter(test.env)
+			r.ServeHTTP(test.rec, test.req)
 
-				RunTest(&test, t)
-			} else {
-				r := routes.NewRouter(test.env)
-				r.ServeHTTP(test.rec, test.req)
-
-				RunTest(&test, t)
-			}
+			RunTest(&test, t)
 		})
 	}
 }
@@ -436,6 +415,16 @@ func TestDeleteUser(t *testing.T) {
 			expectedBody:   "",
 			expectedHeader: "text/plain; charset=utf-8",
 			expectedStatus: http.StatusNoContent,
+		},
+		{
+			// breaks the test because "test" is not an integer
+			name:           "BAD_REQUEST_STRING",
+			rec:            httptest.NewRecorder(),
+			req:            httptest.NewRequest("DELETE", "/users/test", nil),
+			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
+			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusBadRequest)),
+			expectedHeader: "text/plain; charset=utf-8",
+			expectedStatus: http.StatusBadRequest,
 		},
 		{
 			name:           "NOT_FOUND",
@@ -455,29 +444,14 @@ func TestDeleteUser(t *testing.T) {
 			expectedHeader: "text/plain; charset=utf-8",
 			expectedStatus: http.StatusInternalServerError,
 		},
-		{
-			name:           "CTX_ERR",
-			rec:            httptest.NewRecorder(),
-			req:            httptest.NewRequest("DELETE", "/users/1", nil),
-			env:            &config.Env{DB: &MockDB{}, Log: config.Log},
-			expectedBody:   fmt.Sprintf("%s\n", http.StatusText(http.StatusUnprocessableEntity)),
-			expectedHeader: "text/plain; charset=utf-8",
-			expectedStatus: http.StatusUnprocessableEntity,
-		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if test.name == "CTX_ERR" {
-				http.HandlerFunc(routes.DeleteUser(test.env)).ServeHTTP(test.rec, test.req)
+			r := routes.NewRouter(test.env)
+			r.ServeHTTP(test.rec, test.req)
 
-				RunTest(&test, t)
-			} else {
-				r := routes.NewRouter(test.env)
-				r.ServeHTTP(test.rec, test.req)
-
-				RunTest(&test, t)
-			}
+			RunTest(&test, t)
 		})
 	}
 }

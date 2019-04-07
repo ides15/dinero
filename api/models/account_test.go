@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestValidate(t *testing.T) {
+func TestAccountValidate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -137,7 +137,6 @@ func TestValidate(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Log(test.account)
 			result := test.account.Validate()
 
 			if test.expected != result {

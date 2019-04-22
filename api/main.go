@@ -8,14 +8,15 @@ import (
 )
 
 const (
-	dbName = "../dinero.db"
+	driver = "sqlite3"
+	name   = "../dinero.db"
 )
 
 func main() {
 	logger := config.Log
 
 	// Get database reference
-	db, err := models.InitDB(dbName)
+	db, err := models.InitDB(driver, name)
 	if err != nil {
 		logger.Error(err)
 	}

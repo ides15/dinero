@@ -8,8 +8,7 @@ import (
 )
 
 const (
-	usersTableStmt = `
-	CREATE TABLE IF NOT EXISTS "users" (
+	usersTableStmt = `CREATE TABLE "users" (
 		"id" INTEGER,
 		"first_name" TEXT NOT NULL,
 		"last_name" TEXT NOT NULL,
@@ -19,8 +18,7 @@ const (
 		
 		PRIMARY KEY("id")
 	)`
-	accountsTableStmt = `
-	CREATE TABLE IF NOT EXISTS "accounts" (
+	accountsTableStmt = `CREATE TABLE "accounts" (
 		"id" INTEGER,
 		"user_id" INTEGER NOT NULL,
 		"name" TEXT NOT NULL,
@@ -56,14 +54,14 @@ type DB struct {
 }
 
 // InitDB initializes a database
-func InitDB(dbName string) (*DB, error) {
-	db, err := sql.Open("sqlite3", dbName)
+func InitDB(driver string, name string) (*DB, error) {
+	db, err := sql.Open(driver, name)
 	if err != nil {
 		return nil, err
 	}
 
 	if err = db.Ping(); err != nil {
-		return nil, ErrBadPing
+		return nil, err
 	}
 
 	err = createUsersTable(db)
@@ -79,6 +77,11 @@ func InitDB(dbName string) (*DB, error) {
 }
 
 func createUsersTable(db *sql.DB) error {
+	_, err := db.Exec("DROP TABLE IF EXISTS 'users'")
+	if err != nil {
+		return err
+	}
+
 	stmt, err := db.Prepare(usersTableStmt)
 	if err != nil {
 		return err
@@ -94,6 +97,11 @@ func createUsersTable(db *sql.DB) error {
 }
 
 func createAccountsTable(db *sql.DB) error {
+	_, err := db.Exec("DROP TABLE IF EXISTS 'accounts'")
+	if err != nil {
+		return err
+	}
+
 	stmt, err := db.Prepare(accountsTableStmt)
 	if err != nil {
 		return err

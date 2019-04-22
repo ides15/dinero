@@ -5,6 +5,41 @@ import (
 	"testing"
 )
 
+func TestAllAccounts(t *testing.T) {
+	db, err := models.InitDB("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("error initializing test database: %v", err)
+	}
+
+	tests := []struct {
+		name             string
+		db               *models.DB
+		expectedAccounts []*models.Account
+		expectedErr      error
+	}{
+		{
+			name:             "GOOD",
+			db:               db,
+			expectedAccounts: make([]*models.Account, 0),
+			expectedErr:      nil,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := test.db.AllAccounts()
+
+			if len(result) != len(test.expectedAccounts) {
+				t.Fatalf("expected: %d, got: %d", len(test.expectedAccounts), len(result))
+			}
+
+			if err != test.expectedErr {
+				t.Fatalf("expected: %v, got: %v", test.expectedErr, err)
+			}
+		})
+	}
+}
+
 func TestAccountValidate(t *testing.T) {
 	t.Parallel()
 
